@@ -26,11 +26,16 @@ macOS or Linux. To rebuild the JAR after editing, run `build.bat` or
 | Left / Right | Rotate the ship |
 | Up | Thrust; release to coast |
 | Space | Fire; hold to repeat |
+| Right Ctrl | Hold to raise the shield |
 | Enter | Start / start again from the high-score table |
 | P | Pause / resume |
 | H | View the high-score table from the title screen |
 | M | Toggle sound |
 | Esc | Return to the title screen |
+
+The shield ring protects your ship from rocks, saucers and enemy shots. You
+get 10 seconds of shield time per life. Release Right Ctrl to save the charge
+left on the HUD. It refills when you respawn, and carries over between waves.
 
 ## Rock and saucer behaviour
 

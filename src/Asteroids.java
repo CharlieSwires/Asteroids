@@ -42,6 +42,8 @@ public final class Asteroids {
         private final Timer timer;
         private long last=System.nanoTime();
         private double timeOwed,overTime;
+        private boolean shieldHeld;
+        private final KeyEventDispatcher shieldKeys=this::dispatchShieldKey;
         private boolean left,right,thrust,fire,paused,muted,enterDown,scorePrompted,scoreLoadFailed;
         private String scoreMessage="";
 
@@ -60,16 +62,29 @@ public final class Asteroids {
             bind(KeyEvent.VK_P,true,"pause",()->{if(screen==Screen.PLAY){paused=!paused;clearKeys();}});
             bind(KeyEvent.VK_ESCAPE,true,"back",()->{clearKeys();paused=false;screen=Screen.TITLE;});
             timer=new Timer(1000/60,e->tick());
+            KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(shieldKeys);
             timer.start();
         }
 
-        void shutdown(){timer.stop();sound.close();}
-        void clearKeys(){left=right=thrust=fire=enterDown=false;}
+        void shutdown(){
+            KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(shieldKeys);
+            timer.stop();sound.close();
+        }
+        private boolean dispatchShieldKey(KeyEvent e) {
+            Window window=SwingUtilities.getWindowAncestor(this);
+            if(window==null || !window.isFocused() || e.getKeyCode()!=KeyEvent.VK_CONTROL
+                    || e.getKeyLocation()!=KeyEvent.KEY_LOCATION_RIGHT) return false;
+            if(e.getID()==KeyEvent.KEY_PRESSED) shieldHeld=screen==Screen.PLAY&&!paused;
+            else if(e.getID()==KeyEvent.KEY_RELEASED) shieldHeld=false;
+            return true;
+        }
+        void clearKeys(){left=right=thrust=fire=enterDown=shieldHeld=false;}
         private void bindPair(int key,String name,Runnable pressed,Runnable released) {
             bind(key,false,name,pressed);bind(key,true,name+"-up",released);
         }
         private void bind(int key,boolean release,String name,Runnable action) {
             getInputMap(WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(key,0,release),name);
+            getInputMap(WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(key,InputEvent.CTRL_DOWN_MASK,release),name);
             getActionMap().put(name,new AbstractAction() {
                 private static final long serialVersionUID=1L;
                 @Override public void actionPerformed(ActionEvent e){action.run();}
@@ -91,7 +106,7 @@ public final class Asteroids {
                 timeOwed+=elapsed;
                 while(timeOwed>=STEP) {
                     timeOwed-=STEP;
-                    game.update(STEP,(right?1:0)-(left?1:0),thrust,fire);
+                    game.update(STEP,(right?1:0)-(left?1:0),thrust,fire,shieldHeld);
                     if(game.gameOver&&screen==Screen.PLAY) {
                         screen=Screen.OVER;overTime=0;clearKeys();
                     }
@@ -162,9 +177,14 @@ public final class Asteroids {
                 double length=Math.hypot(s.vx,s.vy);
                 wrapped(g,s.x,s.y,8,0,h->h.draw(new Line2D.Double(0,0,-s.vx*6/length,-s.vy*6/length)));
             }
-            if(!game.gameOver&&(game.safe<=0||paused||((int)(game.safe*9)&1)==0)) {
+            if(!game.gameOver&&(game.shieldActive||game.safe<=0||paused||((int)(game.safe*9)&1)==0)) {
                 g.setColor(ICE);
                 wrapped(g,game.x,game.y,24,game.angle,h->ship(h,game.thrust));
+                if(game.shieldActive) {
+                    double r=AsteroidsGame.SHIELD_RADIUS;
+                    g.setColor(new Color(100,225,255));
+                    wrapped(g,game.x,game.y,r+2,0,h->h.draw(new Ellipse2D.Double(-r,-r,2*r,2*r)));
+                }
             }
             for(AsteroidsGame.Popup popup:game.popups) {
                 label(g,"+"+popup.value,15,(int)Math.max(5,Math.min(W-65,popup.x+8)),
@@ -175,6 +195,10 @@ public final class Asteroids {
             String best=String.format("BEST  %,d",Math.max(scores.best(),game.score));
             g.setFont(new Font(Font.MONOSPACED,Font.PLAIN,18));
             label(g,best,18,W-24-g.getFontMetrics().stringWidth(best),36,ICE);
+            String charge=String.format(java.util.Locale.ROOT,"SHIELD  %.1fs  [RIGHT CTRL]",
+                    Math.ceil(game.shieldRemaining*10)/10);
+            g.setFont(new Font(Font.MONOSPACED,Font.PLAIN,14));
+            label(g,charge,14,W-24-g.getFontMetrics().stringWidth(charge),61,game.shieldActive?ICE:DIM);
             g.setColor(ICE);
             for(int i=0;i<game.lives;i++) {
                 Graphics2D icon=(Graphics2D)g.create();
@@ -222,7 +246,8 @@ public final class Asteroids {
             icon.translate(W/2.0,314);icon.rotate(-Math.PI/2);icon.scale(1.55,1.55);ship(icon,true);icon.dispose();
             centered(g,"ENTER  START GAME",24,409,GOLD);
             centered(g,"LEFT / RIGHT   TURN      UP   THRUST      SPACE   FIRE",16,472,ROCK);
-            centered(g,"H  HIGH SCORES     P  PAUSE     M  SOUND     ESC  TITLE",15,505,DIM);
+            centered(g,"RIGHT CTRL   SHIELD",15,499,ICE);
+            centered(g,"H  HIGH SCORES     P  PAUSE     M  SOUND     ESC  TITLE",15,528,DIM);
             centered(g,"Split the rocks. Watch for saucers that lead their shots.",15,564,DIM);
         }
 

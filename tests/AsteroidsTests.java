@@ -64,6 +64,7 @@ public final class AsteroidsTests {
         game.start();
         require(!game.gameOver&&game.wave==1&&game.score==0,"restart");
 
+        testShield();
         for(SoundEffects.Effect e:SoundEffects.Effect.values()) {
             boolean audible=false;
             for(short sample:SoundEffects.synthesize(e)) if(sample!=0) audible=true;
@@ -85,6 +86,34 @@ public final class AsteroidsTests {
             } finally {panel.shutdown();}
         });
         System.out.println("PASS: split geometry, opposite spin, speed growth, saucer scoring/flight, wrapped intercepts, waves, restart, Swing rendering and input, sound samples");
+    }
+
+    private static void testShield() {
+        AsteroidsGame game=new AsteroidsGame(new Random(24),e->{});
+        double dt=1.0/120;
+        game.start();
+        game.safe=0;
+        game.shots.add(new AsteroidsGame.Shot(game.x+20,game.y,0,0,1,false));
+        game.update(dt,1,true,true,true);
+        require(game.shieldActive&&game.lives==3,"shield absorbs a shot at the ring");
+        require(game.shots.size()==1&&game.shots.get(0).player,"can thrust and fire with shield up");
+        for(int i=1;i<480;i++) game.update(dt,0,false,false,true);
+        close(game.shieldRemaining,6,1e-8,"four seconds spent");
+        game.update(dt,0,false,false,false);
+        require(!game.shieldActive,"release lowers shield");
+        close(game.shieldRemaining,6,1e-8,"release saves charge");
+        game.rocks.clear();
+        game.waveDelay=0;
+        game.update(dt,0,false,false,false);
+        close(game.shieldRemaining,6,1e-8,"wave change does not refill");
+        game.nextSaucer[0]=game.nextSaucer[1]=Double.POSITIVE_INFINITY;
+        for(int i=0;i<720;i++) game.update(dt,0,false,false,true);
+        close(game.shieldRemaining,0,1e-8,"ten total seconds");
+        game.x=AsteroidsGame.W/2.0;game.y=AsteroidsGame.H/2.0;
+        game.shots.add(new AsteroidsGame.Shot(game.x,game.y,0,0,1,false));
+        game.update(dt,0,false,false,true);
+        require(!game.shieldActive&&game.lives==2,"empty shield cannot block a shot");
+        close(game.shieldRemaining,10,1e-8,"new ship refills shield");
     }
 
     private static void press(Asteroids.VectorPanel panel,String action) {

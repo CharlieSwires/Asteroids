@@ -7,6 +7,9 @@ import java.util.function.Consumer;
 
 final class AsteroidsGame {
     static final int W=960,H=720;
+    static final double SHIELD_SECONDS=10, SHIELD_RADIUS=23;
+    double shieldRemaining;
+    boolean shieldActive;
     private static final int[] ROCK_POINTS={20,40,70,100,150};
     static final double ENEMY_SPEED=440,ENEMY_LIFE=2.1;
     final List<Rock> rocks=new ArrayList<>();
@@ -28,13 +31,13 @@ final class AsteroidsGame {
     }
 
     void start() {
-        bursts.clear(); popups.clear(); alternateBeat=false; wave=0; score=0; lives=3; gameOver=false; beat=0.4; thrustSound=0;
+        shieldRemaining=SHIELD_SECONDS; bursts.clear(); popups.clear(); alternateBeat=false; wave=0; score=0; lives=3; gameOver=false; beat=0.4; thrustSound=0;
         newWave();
     }
 
     private void resetShip() {
         x=W/2.0;y=H/2.0;vx=0;vy=0;angle=-Math.PI/2;
-        safe=2.5; cooldown=0; thrust=false;
+        safe=2.5; cooldown=0; thrust=false; shieldActive=false;
     }
 
     private void newWave() {
@@ -53,6 +56,10 @@ final class AsteroidsGame {
     }
 
     void update(double dt,int turn,boolean accelerate,boolean fire) {
+        update(dt,turn,accelerate,fire,false);
+    }
+
+    void update(double dt,int turn,boolean accelerate,boolean fire,boolean shieldHeld) {
         for(Iterator<SaturnExplosion> it=bursts.iterator();it.hasNext();) {
             SaturnExplosion burst=it.next(); burst.update(dt);
             if(burst.getCount()==0) it.remove();
@@ -61,6 +68,11 @@ final class AsteroidsGame {
             if((it.next().life-=dt)<=0) it.remove();
         }
         if(gameOver) return;
+        shieldActive=shieldHeld&&shieldRemaining>0;
+        if(shieldActive) {
+            shieldRemaining=Math.max(0,shieldRemaining-dt);
+            if(shieldRemaining<1e-9) shieldRemaining=0;
+        }
         safe-=dt; cooldown-=dt;
         angle=wrap(angle+turn*4.8*dt,2*Math.PI);
         thrust=accelerate;
@@ -89,14 +101,17 @@ final class AsteroidsGame {
             Shot s=it.next();
             double step=Math.min(dt,s.life),dx=s.vx*step,dy=s.vy*step;
             s.life-=dt;
-            if(s.player ? playerShot(s,dx,dy) : safe<=0&&hits(s,dx,dy,x,y,10)) {
+            if(s.player ? playerShot(s,dx,dy) : (shieldActive||safe<=0)&&hits(s,dx,dy,x,y,shieldActive?SHIELD_RADIUS:10)) {
                 it.remove();
-                if(!s.player) {loseShip(); if(gameOver) break;}
+                if(!s.player) {
+                    if(shieldActive) sound(SoundEffects.Effect.SHIELD_HIT);
+                    else {loseShip(); if(gameOver) break;}
+                }
             } else if(s.life<=0) it.remove();
             else {s.x=wrap(s.x+dx,W);s.y=wrap(s.y+dy,H);}
         }
         if(gameOver) {shots.clear(); return;}
-        if(safe<=0) {
+        if(!shieldActive&&safe<=0) {
             for(Rock r:rocks) {
                 double dx=near(x-r.x,W),dy=near(y-r.y,H);
                 if(r.touches(dx,dy,dx,dy,9)){loseShip();break;}
@@ -197,7 +212,7 @@ final class AsteroidsGame {
         explode(x,y);sound(SoundEffects.Effect.PLAYER_HIT);
         lives--;
         if(lives==0){gameOver=true;thrust=false;sound(SoundEffects.Effect.GAME_OVER);}
-        else resetShip();
+        else {shieldRemaining=SHIELD_SECONDS; resetShip();}
     }
 
     private void explode(double x,double y) {
