@@ -82,6 +82,7 @@ final class AsteroidsGame {
             if(speed>330) {vx*=330/speed;vy*=330/speed;}
             if((thrustSound-=dt)<=0){sound(SoundEffects.Effect.THRUST);thrustSound=0.12;}
         } else thrustSound=0;
+        double oldX=x,oldY=y;
         x=wrap(x+vx*dt,W);y=wrap(y+vy*dt,H);
         if(fire&&cooldown<=0) {
             double c=Math.cos(angle),s=Math.sin(angle);
@@ -90,9 +91,12 @@ final class AsteroidsGame {
         }
 
         for(Rock rock:rocks) {
-            rock.x=wrap(rock.x+Math.cos(rock.heading)*rock.speed*dt,W);
-            rock.y=wrap(rock.y+Math.sin(rock.heading)*rock.speed*dt,H);
+            double rx=Math.cos(rock.heading)*rock.speed,ry=Math.sin(rock.heading)*rock.speed;
+            double beforeX=near(rock.x-oldX,W),beforeY=near(rock.y-oldY,H);
+            rock.x=wrap(rock.x+rx*dt,W);
+            rock.y=wrap(rock.y+ry*dt,H);
             rock.angle=wrap(rock.angle+rock.spin*dt,Math.PI*2);
+            if(shieldActive) bounceRock(rock,beforeX,beforeY,rx,ry,dt);
         }
         if(!rocks.isEmpty()) updateSaucers(dt);
         else saucers.clear();
@@ -128,6 +132,42 @@ final class AsteroidsGame {
             for(Rock rock:rocks) remaining+=Math.scalb(1.0,-rock.depth);
             beat=0.29+0.47*Math.min(1,remaining/6);
         }
+    }
+
+    private void bounceRock(Rock rock,double beforeX,double beforeY,double rx,double ry,double dt) {
+        double relativeX=rx-vx,relativeY=ry-vy;
+        double dx=beforeX+relativeX*dt,dy=beforeY+relativeY*dt;
+        if(!rock.touches(-beforeX,-beforeY,-dx,-dy,SHIELD_RADIUS)) return;
+
+        // Use the side the rock arrived from if it crossed the shield center.
+        double nx=dx,ny=dy;
+        if(dx*beforeX+dy*beforeY<=0) {nx=beforeX;ny=beforeY;}
+        double length=Math.hypot(nx,ny);
+        if(length<1e-9) {
+            nx=-relativeX;ny=-relativeY;length=Math.hypot(nx,ny);
+            if(length<1e-9) {nx=1;ny=0;length=1;}
+        }
+        nx/=length;ny/=length;
+        double approach=relativeX*nx+relativeY*ny;
+        if(approach<0) {
+            rx-=2*approach*nx;ry-=2*approach*ny;
+            rock.speed=Math.hypot(rx,ry);
+            rock.heading=Math.atan2(ry,rx);
+            sound(SoundEffects.Effect.SHIELD_HIT);
+        }
+
+        // Clear the actual outline so the next tick does not reflect it again.
+        double low=Math.max(0,dx*nx+dy*ny),high=rock.radius+SHIELD_RADIUS+1;
+        if(low<high&&rock.touches(-nx*low,-ny*low,-nx*low,-ny*low,SHIELD_RADIUS)) {
+            for(int i=0;i<12;i++) {
+                double mid=(low+high)*0.5;
+                if(rock.touches(-nx*mid,-ny*mid,-nx*mid,-ny*mid,SHIELD_RADIUS)) low=mid;
+                else high=mid;
+            }
+            low=high+0.25;
+        }
+        rock.x=wrap(x+nx*low,W);
+        rock.y=wrap(y+ny*low,H);
     }
 
     private boolean playerShot(Shot s,double dx,double dy) {

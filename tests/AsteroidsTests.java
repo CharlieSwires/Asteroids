@@ -65,6 +65,8 @@ public final class AsteroidsTests {
         require(!game.gameOver&&game.wave==1&&game.score==0,"restart");
 
         testShield();
+        testRockBounce(false);
+        testRockBounce(true);
         for(SoundEffects.Effect e:SoundEffects.Effect.values()) {
             boolean audible=false;
             for(short sample:SoundEffects.synthesize(e)) if(sample!=0) audible=true;
@@ -86,6 +88,27 @@ public final class AsteroidsTests {
             } finally {panel.shutdown();}
         });
         System.out.println("PASS: split geometry, opposite spin, speed growth, saucer scoring/flight, wrapped intercepts, waves, restart, Swing rendering and input, sound samples");
+    }
+
+    private static void testRockBounce(boolean wraps) {
+        AsteroidsGame game=new AsteroidsGame(new Random(22),e->{});
+        game.start();
+        game.rocks.clear();
+        game.x=wraps?945:300;
+        game.y=300;
+        game.vx=wraps?40:0;
+        Rock rock=Rock.large(game.random,AsteroidsGame.wrap(game.x+90,AsteroidsGame.W),game.y,1);
+        rock.heading=Math.PI;
+        double speed=rock.speed;
+        game.rocks.add(rock);
+        int steps=0;
+        while(Math.cos(rock.heading)<0&&steps++<400) game.update(1.0/120,0,false,false,true);
+        require(Math.cos(rock.heading)>0.99&&game.lives==3,"rock ricochets off shield");
+        close(rock.speed,speed+2*game.vx,1e-7,"bounce relative to moving shield");
+        double dx=AsteroidsGame.near(game.x-rock.x,AsteroidsGame.W),dy=game.y-rock.y;
+        require(!rock.touches(dx,dy,dx,dy,AsteroidsGame.SHIELD_RADIUS),"rock separated after bounce");
+        game.update(1.0/120,0,false,false,true);
+        require(Math.cos(rock.heading)>0.99,"rock stays on its outgoing heading");
     }
 
     private static void testShield() {

@@ -33,7 +33,8 @@ macOS or Linux. To rebuild the JAR after editing, run `build.bat` or
 | M | Toggle sound |
 | Esc | Return to the title screen |
 
-The shield ring protects your ship from rocks, saucers and enemy shots. You
+Rocks bounce off the active shield ring. The shield also protects you from
+saucers and enemy shots. You
 get 10 seconds of shield time per life. Release Right Ctrl to save the charge
 left on the HUD. It refills when you respawn, and carries over between waves.
 

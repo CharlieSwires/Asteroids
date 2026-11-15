@@ -8,7 +8,8 @@ import java.util.Random;
 final class Rock {
     static final int SPLITS = 4;
     final List<Point> points;
-    final double radius, speed, spin;
+    final double radius, spin;
+    double speed;
     final int depth;
     double x, y, angle, heading;
 
@@ -254,7 +255,9 @@ final class Rock {
         Point p=points.get(points.size()-1);
         for(Point q:points) {
             if(intersects(ax,ay,bx,by,p,q)) return true;
-            if(padding>0&&distance(ax,ay,p.x,p.y,q.x,q.y)<=padding) return true;
+            if(padding>0&&(distance(ax,ay,p.x,p.y,q.x,q.y)<=padding
+                    ||distance(bx,by,p.x,p.y,q.x,q.y)<=padding
+                    ||distance(p.x,p.y,ax,ay,bx,by)<=padding)) return true;
             p=q;
         }
         return false;
